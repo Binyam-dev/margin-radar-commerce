@@ -10,10 +10,12 @@ export function score({cost, shipping, sellPrice, feeRate = .136, orderFee = .40
 
 export function qualify({variant, inventory, freight, comparable, now = Date.now()}) {
   const reasons = [];
+  const gtin = String(variant?.gtin ?? variant?.barcode ?? variant?.variantGtin ?? '').replace(/[^0-9]/g, '');
+  const matchedGtin = String(comparable?.gtin ?? '').replace(/[^0-9]/g, '');
   if (!variant?.vid || !variant?.variantSku || !Number.isFinite(Number(variant.variantSellPrice))) reasons.push('variant missing');
   if (!inventory || Number(inventory.verifiedWarehouse) !== 1 || Number(inventory.cjInventory) < 2) reasons.push('CJ-managed stock under 2');
   if (!freight || !Number.isFinite(Number(freight.totalPostageFee ?? freight.logisticPrice))) reasons.push('freight unavailable');
-  if (!comparable || comparable.matchType !== 'EXACT_GTIN' || comparable.condition !== 'NEW' || comparable.currency !== 'USD' || !Number.isFinite(Number(comparable.price)) || Number(comparable.soldCount) < 3 || !Number.isFinite(Date.parse(comparable.observedAt)) || now - Date.parse(comparable.observedAt) > 86400000 || Date.parse(comparable.observedAt) > now) reasons.push('recent exact sold comparable missing');
+  if (!gtin || !matchedGtin || gtin !== matchedGtin || !comparable || comparable.matchType !== 'EXACT_GTIN' || comparable.condition !== 'NEW' || comparable.currency !== 'USD' || !Number.isFinite(Number(comparable.price)) || Number(comparable.soldCount) < 3 || !Number.isFinite(Date.parse(comparable.observedAt)) || now - Date.parse(comparable.observedAt) > 86400000 || Date.parse(comparable.observedAt) > now) reasons.push('recent exact GTIN sold comparable missing');
   if (reasons.length) return {qualified:false,reasons};
   const result = score({cost:Number(variant.variantSellPrice),shipping:Number(freight.totalPostageFee ?? freight.logisticPrice),sellPrice:Number(comparable.price)});
   if (result.net < 5 || result.roi < .2) reasons.push('margin below $5 or 20% ROI');
