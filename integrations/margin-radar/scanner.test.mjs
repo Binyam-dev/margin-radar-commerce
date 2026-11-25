@@ -3,14 +3,16 @@ import assert from 'node:assert/strict';
 import {score,qualify,scan} from './scanner.mjs';
 
 const now=Date.now();
-const variant={vid:'cj-variant-1',variantSku:'CJ-ABC',variantSellPrice:7};
+const variant={vid:'cj-variant-1',variantSku:'CJ-ABC',gtin:'0123456789012',variantSellPrice:7};
 const inventory={countryCode:'US',verifiedWarehouse:1,cjInventory:12};
 const freight={logisticPrice:3,logisticName:'Ground'};
-const comparable={matchType:'EXACT_GTIN',condition:'NEW',currency:'USD',price:25,soldCount:5,observedAt:new Date(now-3600000).toISOString()};
+const comparable={matchType:'EXACT_GTIN',gtin:'0123456789012',condition:'NEW',currency:'USD',price:25,soldCount:5,observedAt:new Date(now-3600000).toISOString()};
 test('fee, shipping and reserve enter net margin',()=>assert.deepEqual(score({cost:7,shipping:3,sellPrice:25}),{landed:10,net:9.2,roi:.92}));
 test('requires exact sold evidence and real CJ-managed stock',()=>{
  assert.equal(qualify({variant,inventory,freight,comparable,now}).qualified,true);
  assert.equal(qualify({variant,inventory,freight,comparable:{...comparable,matchType:'TITLE_SIMILAR'},now}).qualified,false);
+ assert.equal(qualify({variant,inventory,freight,comparable:{...comparable,gtin:'9999999999999'},now}).qualified,false);
+ assert.equal(qualify({variant:{...variant,gtin:undefined},inventory,freight,comparable,now}).qualified,false);
  assert.equal(qualify({variant,inventory:{...inventory,cjInventory:0},freight,comparable,now}).qualified,false);
  assert.equal(qualify({variant,inventory,freight,comparable:{...comparable,observedAt:new Date(now-90000000).toISOString()},now}).qualified,false);
 });
