@@ -1,9 +1,11 @@
 import {scan} from './scanner.mjs';
+import {PriceHistory} from './price-history.mjs';
 
 const base = 'https://developers.cjdropshipping.com/api2.0/v1';
 const required = name => {const value=process.env[name];if(!value)throw new Error(name+' is required');return value;};
 const interval = Math.max(30,Number(process.env.SCAN_INTERVAL_MINUTES)||60)*60000;
 let accessToken, expires = 0;
+let history;
 async function token() {
   if (accessToken && Date.now() < expires) return accessToken;
   const response=await fetch(base+'/authentication/getAccessToken',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({apiKey:required('CJ_API_KEY')})});
@@ -16,7 +18,16 @@ async function cj(path,body) {
 }
 const supplier={
   async products({limit}) {const data=await cj('/product/listV2?'+new URLSearchParams({page:'1',size:String(limit),verifiedWarehouse:'1',zonePlatform:'ebay'}));return (data.content||[]).flatMap(x=>x.productList||[]);},
-  detail: id=>cj('/product/query?pid='+encodeURIComponent(id)),
+  async detail(id) {
+    const detail=await cj('/product/query?pid='+encodeURIComponent(id));
+    for (const variant of detail.variants || []) {
+      const price=Number(variant.variantSellPrice);
+      if (!variant.vid || !Number.isFinite(price) || price<=0) continue;
+      const change=history.record({source:'CJ',productId:id,variantId:variant.vid,currency:'USD',price});
+      if (change.dropPercent >= 5) console.log(JSON.stringify({event:'supplier_price_drop',variantId:variant.vid,...change,evidenceType:'SUPPLIER_OFFER'}));
+    }
+    return detail;
+  },
   freight: ({vid,origin})=>cj('/logistic/freightCalculate',{startCountryCode:origin,endCountryCode:'US',products:[{vid,quantity:1}]})
 };
 const comparator={async findExactSold({product,variant}) {
@@ -41,6 +52,7 @@ async function cycle() {
 }
 if(import.meta.url===new URL('file://'+process.argv[1]).href){
   required('CJ_API_KEY');
+  history=new PriceHistory(process.env.PRICE_HISTORY_DB || './data/margin-radar/prices.sqlite');
   do {try{await cycle();}catch(error){console.error(JSON.stringify({event:'scan_error',message:error.message}));process.exitCode=1;}
     if(process.argv.includes('--once'))break;
     await new Promise(resolve=>setTimeout(resolve,interval));
