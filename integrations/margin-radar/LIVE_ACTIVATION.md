@@ -13,3 +13,9 @@ Crossmart is forked into this repository. `integrations/margin-radar` contains a
 No opportunity is presently qualified. No Crossmart service is deployed, no listing is published, and no order has been routed. Do not enable automatic publishing until an end-to-end sandbox order and a real supplier fulfillment path have been verified.
 
 The current private Margin Radar dashboard remains a research and CJ data view. It should not display a live-revenue claim until these gates are cleared.
+
+## Marketplace data decision (2026-11-25)
+
+Do not run the proposed eBay retailer-to-retailer arbitrage workflow. eBay's API License Agreement §9 expressly restricts automated seller arbitrage and using eBay content to model listing prices without prior written consent. eBay's dropshipping policy allows a pre-existing wholesale-supplier agreement, not purchase from another retailer after the buyer orders. Source: https://developer.ebay.com/develop/api-license-agreement and https://www.ebay.com/help/selling/listings/drop-shipping?id=4176.
+
+Recommended research feed: Keepa's documented API for Amazon marketplace product price histories across supported countries, subject to its subscription and license. It is advertised-price history, not eBay sold transactions or guaranteed profit. Walmart Marketplace Pricing Insights and Amazon Selling Partner Product Pricing are authorized seller APIs for the seller's own listings after their respective account connections; use them only within their terms. Keep eBay seller arbitrage disabled. Do not subscribe to any paid feed without explicit approval.
