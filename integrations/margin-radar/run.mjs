@@ -6,6 +6,8 @@ const required = name => {const value=process.env[name];if(!value)throw new Erro
 const interval = Math.max(30,Number(process.env.SCAN_INTERVAL_MINUTES)||60)*60000;
 let accessToken, expires = 0;
 let history;
+let lastCall = 0;
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function token() {
   if (accessToken && Date.now() < expires) return accessToken;
   const response=await fetch(base+'/authentication/getAccessToken',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({apiKey:required('CJ_API_KEY')})});
@@ -13,8 +15,16 @@ async function token() {
   accessToken=data.data.accessToken;expires=Date.parse(data.data.accessTokenExpiryDate)-60000;return accessToken;
 }
 async function cj(path,body) {
-  const response=await fetch(base+path,{method:body?'POST':'GET',headers:{'CJ-Access-Token':await token(),...(body?{'content-type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
-  const data=await response.json();if(!response.ok||data.result!==true)throw Error('CJ '+path.split('?')[0]+' error '+(data.code||response.status));return data.data;
+  for (let attempt=0; attempt<3; attempt++) {
+    await pause(Math.max(0, 650-(Date.now()-lastCall)));
+    lastCall=Date.now();
+    const response=await fetch(base+path,{method:body?'POST':'GET',headers:{'CJ-Access-Token':await token(),...(body?{'content-type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
+    const data=await response.json();
+    if(response.ok && data.result===true)return data.data;
+    if(Number(data.code)!==1600200 && response.status!==429)throw Error('CJ '+path.split('?')[0]+' error '+(data.code||response.status));
+    if(attempt===2)throw Error('CJ rate limit persisted for '+path.split('?')[0]);
+    await pause((attempt+1)*5000);
+  }
 }
 const supplier={
   async products({limit}) {const data=await cj('/product/listV2?'+new URLSearchParams({page:'1',size:String(limit),verifiedWarehouse:'1',zonePlatform:'ebay'}));return (data.content||[]).flatMap(x=>x.productList||[]);},
