@@ -4,6 +4,7 @@ import {PriceHistory} from './price-history.mjs';
 const base = 'https://developers.cjdropshipping.com/api2.0/v1';
 const required = name => {const value=process.env[name];if(!value)throw new Error(name+' is required');return value;};
 const interval = Math.max(30,Number(process.env.SCAN_INTERVAL_MINUTES)||60)*60000;
+const page = Number(process.env.SCAN_PAGE) || 1 + Math.floor(Date.now()/3600000)%5;
 let accessToken, expires = 0;
 let history;
 let lastCall = 0;
@@ -27,7 +28,7 @@ async function cj(path,body) {
   }
 }
 const supplier={
-  async products({limit}) {const data=await cj('/product/listV2?'+new URLSearchParams({page:'1',size:String(limit),verifiedWarehouse:'1',zonePlatform:'ebay'}));return (data.content||[]).flatMap(x=>x.productList||[]);},
+  async products({limit}) {const data=await cj('/product/listV2?'+new URLSearchParams({page:String(page),size:String(limit),verifiedWarehouse:'1',zonePlatform:'ebay'}));return (data.content||[]).flatMap(x=>x.productList||[]);},
   async detail(id) {
     const detail=await cj('/product/query?pid='+encodeURIComponent(id));
     for (const variant of detail.variants || []) {
@@ -58,7 +59,7 @@ async function crossmartDraft({product,variant,inventory,comparable,decision}) {
 }
 async function cycle() {
   const result=await scan({cj:supplier,comparable:comparator,limit:Math.min(20,Math.max(1,Number(process.env.SCAN_PRODUCTS_PER_CYCLE)||8)),onCandidate:crossmartDraft,onRejected:({product,reason})=>console.log(JSON.stringify({event:'rejected',sku:product.sku||product.productSku,reason}))});
-  console.log(JSON.stringify({event:'scan_complete',at:new Date().toISOString(),...result}));
+  console.log(JSON.stringify({event:'scan_complete',at:new Date().toISOString(),page,...result}));
 }
 if(import.meta.url===new URL('file://'+process.argv[1]).href){
   required('CJ_API_KEY');
