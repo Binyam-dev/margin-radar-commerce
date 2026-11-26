@@ -1,5 +1,6 @@
 import {scan} from './scanner.mjs';
 import {PriceHistory} from './price-history.mjs';
+import {researchOffers} from './pricelists.mjs';
 
 const base = 'https://developers.cjdropshipping.com/api2.0/v1';
 const required = name => {const value=process.env[name];if(!value)throw new Error(name+' is required');return value;};
@@ -31,11 +32,19 @@ const supplier={
   async products({limit}) {const data=await cj('/product/listV2?'+new URLSearchParams({page:String(page),size:String(limit),verifiedWarehouse:'1',zonePlatform:'ebay'}));return (data.content||[]).flatMap(x=>x.productList||[]);},
   async detail(id) {
     const detail=await cj('/product/query?pid='+encodeURIComponent(id));
+    let researched = 0;
     for (const variant of detail.variants || []) {
       const price=Number(variant.variantSellPrice);
       if (!variant.vid || !Number.isFinite(price) || price<=0) continue;
       const change=history.record({source:'CJ',productId:id,variantId:variant.vid,currency:'USD',price});
       if (change.dropPercent >= 5) console.log(JSON.stringify({event:'supplier_price_drop',variantId:variant.vid,...change,evidenceType:'SUPPLIER_OFFER'}));
+      if (process.env.PRICELISTS_RESEARCH === '1' && researched < 2) {
+        try {
+          const lead = await researchOffers(variant);
+          if (lead.status !== 'NO_GTIN') { researched++; await pause(1100); }
+          if (lead.status === 'RECENT_OFFERS') console.log(JSON.stringify({event:'price_research',variantId:variant.vid,gtin:lead.gtin,offers:lead.offers,evidenceType:lead.evidenceType,publishable:false}));
+        } catch (error) { console.error(JSON.stringify({event:'price_research_error',variantId:variant.vid,message:String(error.message).slice(0,120)})); }
+      }
     }
     return detail;
   },
